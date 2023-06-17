@@ -1,0 +1,33 @@
+name: Deploy to GitHub Pages
+
+# Run workflow on every push to the master branch
+on:
+  push:
+    branches: [ release ]
+
+jobs:
+  deploy-to-github-pages:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install Rust Nightly
+      uses: brndnmtthws/rust-action-rustup@v1
+      with:
+        toolchain: nightly
+        targets: wasm32-unknown-unknown
+        
+    - name: Install Trunk from crates.io
+      uses: baptiste0928/cargo-install@v2
+      with:
+        crate: trunk
+    
+    - name: Build project
+      run: 
+        
+    
+    
+    
+
+      
+

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
 
@@ -6,6 +8,28 @@ struct MovePicker {
     to: Option<Square>,
     from: Option<Square>,
     promotion: Option<Piece>,
+}
+
+trait Flip {
+    fn flip(&mut self);
+
+    fn flipped(&self) -> Self
+    where
+        Self: Sized + Copy,
+    {
+        let mut copy = *self;
+        copy.flip();
+        copy
+    }
+}
+
+impl Flip for Color {
+    fn flip(&mut self) {
+        *self = match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
 }
 
 impl MovePicker {
@@ -56,22 +80,10 @@ fn format_board_status(board: ReadSignal<Board>) -> String {
     match (status, board.side_to_move()) {
         (GameStatus::Drawn, _) => return "Draw!".to_string(),
         (GameStatus::Ongoing, side) => {
-            return format!(
-                "{} to move!",
-                match side {
-                    Color::White => "White",
-                    Color::Black => "Black",
-                }
-            );
+            return format!("{} to move!", side);
         }
         (_, side) => {
-            return format!(
-                "{} wins!",
-                match side {
-                    Color::White => "Black",
-                    Color::Black => "White",
-                }
-            );
+            return format!("{} wins!", side.flipped());
         }
     }
 }
@@ -126,6 +138,7 @@ fn filter_moves(
 pub fn ChessBoard(cx: Scope) -> impl IntoView {
     let (board, set_board) = create_signal(cx, Board::startpos());
     let (picker, set_picker) = create_signal(cx, MovePicker::new());
+    let (user_color, set_user_color) = create_signal(cx, Color::White);
 
     let moves = create_memo(cx, move |_| {
         let board = board.get();
@@ -157,43 +170,59 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     });
 
     view! { cx,
-        <div class="my-0 mx-auto max-w-3xl text-center text-page-text text-xl">
-            {
-                move || format_board_status(board)
-            }
+        <div class="flex justify-center">
+            <div>
+                <button class="mr-20 my-5 bg-chess-green text-white font-bold rounded-md p-2"
+                on:click=move |_| {set_user_color.update(|c| c.flip())}>
+                    {match user_color.get() {
+                        Color::White => "Play as Black",
+                        Color::Black => "Play as White",
+                    }}
+                </button>
+            </div>
+            <div class="ml-20 my-5 max-w-3xl text-center text-page-text text-xl p-2">
+                {move || format_board_status(board)}
+            </div>
         </div>
         <div class="max-w-2xl mx-auto my-auto">
             <div>
                 <div class="select-none grid grid-cols-8 mx-auto border-2 border-black">
-                    {(0..64).map(|i| {
-                        let square = Square::index(i).flip_rank();
-                        view! { cx, <Square square=square board=board picker=picker set_picker=set_picker/> }}
-                    ).collect::<Vec<_>>()}
+                    {(0..64)
+                        .map(|i| {
+                            let square = match user_color.get() {
+                                Color::White => Square::index(i).flip_rank(),
+                                Color::Black => Square::index(i),
+                            };
+                            view! { cx, <Square square=square board=board picker=picker set_picker=set_picker/> }
+                        })
+                        .collect::<Vec<_>>()}
                 </div>
             </div>
-
             <div>
-                <Show when=move || needs_promotion.get() fallback= |cx| view! {cx, }>
+                <Show
+                    when=move || needs_promotion.get()
+                    fallback=|cx| {
+                        view! { cx,  }
+                    }
+                >
                     <div class="my-5 mx-auto max-w-fit grid grid-cols-5">
-                        {
-                            vec![
-                                Piece::Queen,
-                                Piece::Rook,
-                                Piece::Bishop,
-                                Piece::Knight,
-                                Piece::Pawn,
-                            ].into_iter().map(|p| {
+                        {vec![Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight, Piece::Pawn,]
+                            .into_iter()
+                            .map(|p| {
                                 let path = piece_to_img_path(Some(color.get()), Some(p));
                                 view! { cx,
-                                    <div class={format!("aspect-square bg-chess-{} hover:shadow-square-inner", match color.get() {
-                                        Color::White => "green",
-                                        Color::Black => "white",
-                                    })}
-                                        on:click=move |_| {set_picker.update(|picker| {picker.set_promotion(p)})}>
+                                    <div
+                                        class=format!(
+                                            "aspect-square bg-chess-{} hover:shadow-square-inner", match color.get() {
+                                            Color::White => "green", Color::Black => "white", }
+                                        )
+                                        on:click=move |_| { set_picker.update(|picker| { picker.set_promotion(p) }) }
+                                    >
                                         <img class="p-0 max-w-piece" src=path/>
                                     </div>
                                 }
-                            }).collect::<Vec<_>>()}
+                            })
+                            .collect::<Vec<_>>()}
                     </div>
                 </Show>
             </div>
@@ -216,31 +245,32 @@ fn Square(
     };
 
     view! { cx,
-        <div class= move || {
-            let highlight = if picker.get().from() == Some(square) {
-                "shadow-square-inner shadow-green-500"
-            } else if picker.get().to() == Some(square) {
-                "shadow-square-inner shadow-yellow-500"
-            } else {
-                ""
-            };
-
-            if highlight == "" {
-                format!("select-none aspect-square {} hover:shadow-square-inner", color)
-            } else {
-                format!("select-none aspect-square {} {}", color, highlight)
+        <div
+            class=move || {
+                let highlight = if picker.get().from() == Some(square) {
+                    "shadow-square-inner shadow-green-500"
+                } else if picker.get().to() == Some(square) {
+                    "shadow-square-inner shadow-yellow-500"
+                } else {
+                    ""
+                };
+                if highlight == "" {
+                    format!("select-none aspect-square {} hover:shadow-square-inner", color)
+                } else {
+                    format!("select-none aspect-square {} {}", color, highlight)
+                }
             }
-
-        }
-        on:click=move |_| {set_picker.update(|p| p.set_square(square))}>
-
-            <Show when=move || {board.get().piece_on(square).is_some()} fallback= |_| {}>
-                <img class="p-0 max-w-piece" src=move || {
-                    let color = board.get().color_on(square);
-                    let piece = board.get().piece_on(square);
-
-                    piece_to_img_path(color, piece)
-                    }/>
+            on:click=move |_| { set_picker.update(|p| p.set_square(square)) }
+        >
+            <Show when=move || { board.get().piece_on(square).is_some() } fallback=|_| {}>
+                <img
+                    class="p-0 max-w-piece"
+                    src=move || {
+                        let color = board.get().color_on(square);
+                        let piece = board.get().piece_on(square);
+                        piece_to_img_path(color, piece)
+                    }
+                />
             </Show>
         </div>
     }

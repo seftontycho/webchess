@@ -1,0 +1,42 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="utf-8">
+    <script type="module">import init from '/tailwind-csr-trunk-c62f93b74a3f6cbb.js';init('/tailwind-csr-trunk-c62f93b74a3f6cbb_bg.wasm');</script>
+    <link rel="icon" href="/favicon-e9cbd8f50cc65bf2.ico">
+    <link rel="stylesheet" href="/output-591b197e0fb5b2e.css">
+    
+    <title>Web Chess</title>
+
+<link rel="preload" href="/tailwind-csr-trunk-c62f93b74a3f6cbb_bg.wasm" as="fetch" type="application/wasm" crossorigin="">
+<link rel="modulepreload" href="/tailwind-csr-trunk-c62f93b74a3f6cbb.js"></head>
+
+<body>
+
+
+<script>(function () {
+    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var url = protocol + '//' + window.location.host + '/_trunk/ws';
+    var poll_interval = 5000;
+    var reload_upon_connect = () => {
+        window.setTimeout(
+            () => {
+                // when we successfully reconnect, we'll force a
+                // reload (since we presumably lost connection to
+                // trunk due to it being killed, so it will have
+                // rebuilt on restart)
+                var ws = new WebSocket(url);
+                ws.onopen = () => window.location.reload();
+                ws.onclose = reload_upon_connect;
+            },
+            poll_interval);
+    };
+
+    var ws = new WebSocket(url);
+    ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.reload) {
+            window.location.reload();
+        }
+    };
+    ws.onclose = reload_upon_connect;
+})()
+</script></body></html>

@@ -5,7 +5,7 @@ on:
   # Runs on pushes targeting the 'release' branch
   push:
     branches:
-      - release
+      - master
 
 jobs:
   deploy:

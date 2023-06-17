@@ -9,7 +9,6 @@ pub fn App(cx: Scope) -> impl IntoView {
 
     view! {
         cx,
-        <Stylesheet id="leptos" href="/pkg/tailwind.css"/>
         <Router>
             <Routes>
                 <Route path="" view=  move |cx| view! { cx, <Home/> }/>

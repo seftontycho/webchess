@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
 
@@ -80,10 +78,22 @@ fn format_board_status(board: ReadSignal<Board>) -> String {
     match (status, board.side_to_move()) {
         (GameStatus::Drawn, _) => return "Draw!".to_string(),
         (GameStatus::Ongoing, side) => {
-            return format!("{} to move!", side);
+            return format!(
+                "{} to move!",
+                match side {
+                    Color::White => "White",
+                    Color::Black => "Black",
+                }
+            );
         }
         (_, side) => {
-            return format!("{} wins!", side.flipped());
+            return format!(
+                "{} wins!",
+                match side.flipped() {
+                    Color::White => "White",
+                    Color::Black => "Black",
+                }
+            );
         }
     }
 }
@@ -161,33 +171,48 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
         }
     });
 
-    let color = create_memo(cx, move |_| board.get().side_to_move());
-
     let needs_promotion = create_memo(cx, move |_| {
         let moves = moves.get();
-
         moves.len() > 0 && moves.into_iter().all(|mov| mov.promotion.is_some())
     });
+
+    let color = create_memo(cx, move |_| board.get().side_to_move());
 
     view! { cx,
         <div class="flex justify-center">
             <div>
-                <button class="mr-20 my-5 bg-chess-green text-white font-bold rounded-md p-2"
-                on:click=move |_| {set_user_color.update(|c| c.flip())}>
+                <button class="mr-5 my-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
+                on:click=move |_| {
+                        set_board.set(Board::startpos());
+                        log!("Board reset");
+                }>
+                    "New Game"
+                </button>
+            </div>
+            <div>
+                <button class="mr-20 my-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
+                on:click=move |_| {
+                    cx.batch(|| {
+                        set_user_color.update(|c| c.flip());
+                        log!("Colour changed to {}", user_color.get_untracked());
+                        set_board.set(Board::startpos());
+                        log!("Board reset");
+                    })
+                }>
                     {match user_color.get() {
                         Color::White => "Play as Black",
                         Color::Black => "Play as White",
                     }}
                 </button>
             </div>
-            <div class="ml-20 my-5 max-w-3xl text-center text-page-text text-xl p-2">
+            <div class="ml-20 my-5 text-center text-white font-bold p-2 rounded-md bg-chess-green">
                 {move || format_board_status(board)}
             </div>
         </div>
         <div class="max-w-2xl mx-auto my-auto">
             <div>
                 <div class="select-none grid grid-cols-8 mx-auto border-2 border-black">
-                    {(0..64)
+                    {move || (0..64)
                         .map(|i| {
                             let square = match user_color.get() {
                                 Color::White => Square::index(i).flip_rank(),
@@ -201,8 +226,8 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
             <div>
                 <Show
                     when=move || needs_promotion.get()
-                    fallback=|cx| {
-                        view! { cx,  }
+                    fallback=|c| {
+                        view! { c,  }
                     }
                 >
                     <div class="my-5 mx-auto max-w-fit grid grid-cols-5">

@@ -22,9 +22,6 @@ pub fn App(cx: Scope) -> impl IntoView {
 fn Home(cx: Scope) -> impl IntoView {
     view! { cx,
         <div class="min-h-screen bg-page-background">
-            <div class="my-0 mx-auto py-10 max-w-3xl text-center text-page-text text-3xl">
-                "Web Chess"
-            </div>
             <ChessBoard/>
         </div>
     }

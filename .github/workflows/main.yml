@@ -1,17 +1,23 @@
-name: Rust Nightly Build and Deploy
+# Simple workflow for deploying static content to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
+  # Runs on pushes targeting the 'release' branch
   push:
     branches:
       - release
 
 jobs:
-  build:
-    name: Build and Deploy
+  deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v2
 
       - name: Set up Rust nightly
@@ -33,4 +39,11 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           personal_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          publish_dir: ./public
+          publish_branch: gh-pages
+          allow_empty_commit: false
+          keep_files: false
+          force_orphan: false
+          enable_jekyll: false
+          disable_nojekyll: false
+          exclude_assets: .github

@@ -32,6 +32,9 @@ jobs:
       - name: Install WebAssembly target
         run: rustup target add wasm32-unknown-unknown
 
+      - name: Install tailwindcss
+        run: npm install tailwindcss
+
       - name: Build with Trunk
         run: trunk build --release
 

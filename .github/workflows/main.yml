@@ -34,21 +34,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Set up Rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-
-      - name: Install Trunk
-        run: cargo install trunk
-
-      - name: Install WebAssembly target
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: Install tailwindcss
-        run: npm install tailwindcss
-
       - name: Build with Trunk
 
         run: trunk build --release --public-url ${{ github.event.repository.name }}

@@ -63,8 +63,6 @@ jobs:
           name: site
           path: dist
 
-        run: trunk build --release
-
       - name: Create artifact
         uses: actions/upload-pages-artifact@v1
         with:

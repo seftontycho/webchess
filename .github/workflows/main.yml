@@ -21,7 +21,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git
+            ~/.cargo/registry
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Set up Rust nightly
         uses: actions-rs/toolchain@v1
@@ -39,17 +49,14 @@ jobs:
         run: npm install tailwindcss
 
       - name: Build with Trunk
-        run: trunk build --release
+        run: trunk build --release --public-url ${{ github.event.repository.name }}
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v3
+      
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@
         with:
-          personal_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
-          publish_branch: gh-pages
-          allow_empty_commit: false
-          keep_files: false
-          force_orphan: false
-          enable_jekyll: false
-          disable_nojekyll: false
-          exclude_assets: .github
+          name: site
+          path: dist

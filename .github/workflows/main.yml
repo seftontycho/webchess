@@ -10,15 +10,7 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-jobs:      - name: Upload Artifact
-61
-        uses: actions/upload-pages-artifact@1
-62
-        with:
-63
-          name: site
-64
-          path: dist
+jobs:      
   build:
     runs-on: ubuntu-latest
 

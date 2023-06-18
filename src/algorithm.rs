@@ -2,7 +2,7 @@ use cozy_chess::{Board, Color, Move, Piece};
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 
-pub fn calc_best_move(board: Board) -> Move {
+pub fn calc_best_move(board: Board) -> Option<Move> {
     let mut moves = Vec::new();
     let side = board.side_to_move();
 
@@ -24,10 +24,10 @@ pub fn calc_best_move(board: Board) -> Move {
 
     let scores: Vec<_> = scores.into_iter().map(|s| s / score_sum).collect();
 
-    let dist = WeightedIndex::new(&scores).unwrap();
+    let dist = WeightedIndex::new(&scores).ok()?;
     let mut rng = thread_rng();
 
-    moves[dist.sample(&mut rng)]
+    Some(moves[dist.sample(&mut rng)])
 }
 
 fn board_score(board: &Board, color: Color) -> f64 {

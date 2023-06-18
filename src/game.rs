@@ -175,12 +175,17 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
                     set_picker.update(|p| p.clear());
                 });
             }
-        } else if color.get() != user_color.get() {
-            let mov = calc_best_move(board.get_untracked());
-            cx.batch(|| {
-                set_board.update(|b| b.play(mov));
-                set_picker.update(|p| p.clear());
-            });
+        }
+    });
+
+    create_effect(cx, move |_| {
+        if color.get() != user_color.get() {
+            if let Some(mov) = calc_best_move(board.get_untracked()) {
+                cx.batch(|| {
+                    set_board.update(|b| b.play(mov));
+                    set_picker.update(|p| p.clear());
+                });
+            }
         }
     });
 

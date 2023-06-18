@@ -1,3 +1,4 @@
+use crate::algorithm::calc_best_move;
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
 
@@ -150,6 +151,8 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     let (picker, set_picker) = create_signal(cx, MovePicker::new());
     let (user_color, set_user_color) = create_signal(cx, Color::White);
 
+    let color = create_memo(cx, move |_| board.get().side_to_move());
+
     let moves = create_memo(cx, move |_| {
         let board = board.get();
         let mut moves = Vec::new();
@@ -164,19 +167,34 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     });
 
     create_effect(cx, move |_| {
-        if (moves.get().len() == 1) & picker.get().to().is_some() {
-            let mov = moves.get()[0];
-            set_board.update(|b| b.play(mov));
-            set_picker.update(|p| p.clear());
+        if color.get() == user_color.get() {
+            if (moves.get().len() == 1) & picker.get().to().is_some() {
+                let mov = moves.get()[0];
+                cx.batch(|| {
+                    set_board.update(|b| b.play(mov));
+                    set_picker.update(|p| p.clear());
+                });
+            }
+        }
+    });
+
+    create_effect(cx, move |_| {
+        if color.get() != user_color.get() {
+            let mov = calc_best_move(board.get_untracked());
+            cx.batch(|| {
+                set_board.update(|b| b.play(mov));
+                set_picker.update(|p| p.clear());
+            });
         }
     });
 
     let needs_promotion = create_memo(cx, move |_| {
+        if color.get() != user_color.get() {
+            return false;
+        }
         let moves = moves.get();
         moves.len() > 0 && moves.into_iter().all(|mov| mov.promotion.is_some())
     });
-
-    let color = create_memo(cx, move |_| board.get().side_to_move());
 
     view! { cx,
         <div class="flex justify-center">
@@ -226,9 +244,7 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
             <div>
                 <Show
                     when=move || needs_promotion.get()
-                    fallback=|c| {
-                        view! { c,  }
-                    }
+                    fallback= |_| {}
                 >
                     <div class="my-5 mx-auto max-w-fit grid grid-cols-5">
                         {vec![Piece::Queen, Piece::Rook, Piece::Bishop, Piece::Knight, Piece::Pawn,]

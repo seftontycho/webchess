@@ -12,6 +12,8 @@ gloo-net = { version = "0.2", features = ["http"] }
 
 # my deps
 cozy-chess = "0.3.2"
+getrandom = { version = "0.2", features = ["js"] }
+rand = { version = "0.8.5", features = ["alloc"] }
 
 # dependecies for client (enable when csr or hydrate set)
 wasm-bindgen = { version = "0.2" }

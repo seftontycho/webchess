@@ -1,3 +1,4 @@
+mod algorithm;
 mod app;
 mod game;
 

@@ -1,13 +1,11 @@
-use crate::algorithm::calc_best_move;
+use crate::algorithm::{
+    choose::GreedyChooser,
+    eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax},
+    score::PawnDifferenceScore,
+    ComputerPlayer,
+};
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
-
-#[derive(Clone)]
-struct MovePicker {
-    to: Option<Square>,
-    from: Option<Square>,
-    promotion: Option<Piece>,
-}
 
 trait Flip {
     fn flip(&mut self);
@@ -29,6 +27,13 @@ impl Flip for Color {
             Color::Black => Color::White,
         }
     }
+}
+
+#[derive(Clone)]
+struct MovePicker {
+    to: Option<Square>,
+    from: Option<Square>,
+    promotion: Option<Piece>,
 }
 
 impl MovePicker {
@@ -103,7 +108,6 @@ fn piece_to_img_path(colour: Option<Color>, piece: Option<Piece>) -> String {
     let color = match colour {
         Some(Color::White) => "w",
         Some(Color::Black) => "b",
-        // IDK why this code is reachable but it is
         None => return "".to_string(),
     };
 
@@ -114,7 +118,6 @@ fn piece_to_img_path(colour: Option<Color>, piece: Option<Piece>) -> String {
         Some(Piece::Rook) => "r",
         Some(Piece::Queen) => "q",
         Some(Piece::King) => "k",
-        // IDK why this code is reachable but it is
         None => return "".to_string(),
     };
 
@@ -151,6 +154,14 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     let (picker, set_picker) = create_signal(cx, MovePicker::new());
     let (user_color, set_user_color) = create_signal(cx, Color::White);
 
+    let opponent = ComputerPlayer::new(
+        AlphaBetaNegamax::new(6),
+        PawnDifferenceScore::default(),
+        GreedyChooser::default(),
+    );
+
+    let (opponent, set_opponent) = create_signal(cx, opponent);
+
     let color = create_memo(cx, move |_| board.get().side_to_move());
 
     let moves = create_memo(cx, move |_| {
@@ -170,6 +181,9 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
         if color.get() == user_color.get() {
             if (moves.get().len() == 1) & picker.get().to().is_some() {
                 let mov = moves.get()[0];
+
+                log!("User Playing {:?}", mov);
+
                 cx.batch(|| {
                     set_board.update(|b| b.play(mov));
                     set_picker.update(|p| p.clear());
@@ -180,11 +194,14 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
 
     create_effect(cx, move |_| {
         if color.get() != user_color.get() {
-            let mov = calc_best_move(board.get_untracked());
-            cx.batch(|| {
-                set_board.update(|b| b.play(mov));
-                set_picker.update(|p| p.clear());
-            });
+            if let Some(mov) = opponent.get_untracked().get_move(board.get_untracked()) {
+                log!("Opponent playing {:?}", mov);
+
+                cx.batch(|| {
+                    set_board.update(|b| b.play(mov));
+                    set_picker.update(|p| p.clear());
+                });
+            }
         }
     });
 

@@ -207,5 +207,9 @@ mod test {
 
         println!("Scores: {:?}", nonzero_scores);
         assert_eq!(nonzero_scores.len(), 2);
+
+        // the two (2-square) pawn moves either side of the white pawn
+        // should result in -1.0 for black as white can take next go
+        assert_eq!(nonzero_scores, vec![&-1.0f64, &-1.0f64]);
     }
 }

@@ -36,7 +36,7 @@ where
 
     pub fn get_move(&self, board: Board) -> Option<Move> {
         let eval = self.algorithm.eval_moves(board, &self.score_fn);
-        log!("Moves: {:?}", eval);
+
         let mut moves = Vec::with_capacity(eval.len());
         let mut weights = Vec::with_capacity(eval.len());
 

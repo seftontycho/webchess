@@ -1,5 +1,8 @@
 use crate::algorithm::{
-    choose::GreedyChooser, eval::NaiveEvaluator, score::PawnDifferenceScore, ComputerPlayer,
+    choose::GreedyChooser,
+    eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax},
+    score::PawnDifferenceScore,
+    ComputerPlayer,
 };
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
@@ -152,7 +155,7 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     let (user_color, set_user_color) = create_signal(cx, Color::White);
 
     let opponent = ComputerPlayer::new(
-        NaiveEvaluator::default(),
+        AlphaBetaNegamax::new(6),
         PawnDifferenceScore::default(),
         GreedyChooser::default(),
     );

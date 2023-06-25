@@ -1,6 +1,6 @@
 use crate::algorithm::{
     choose::GreedyChooser,
-    eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax},
+    eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax, Negascout},
     score::PawnDifferenceScore,
     ComputerPlayer,
 };

@@ -254,6 +254,120 @@ impl Evaluator for AlphaBetaNegamax {
     }
 }
 
+#[derive(Clone)]
+pub struct Negascout {
+    depth: usize,
+}
+
+impl Default for Negascout {
+    fn default() -> Self {
+        Self { depth: 2 }
+    }
+}
+
+impl Negascout {
+    pub fn new(depth: usize) -> Self {
+        Self { depth }
+    }
+
+    fn negascout<T: ScoreFunction>(
+        score_fn: &T,
+        board: Board,
+        depth: usize,
+        alpha: f64,
+        beta: f64,
+        negative: bool,
+    ) -> f64 {
+        if depth == 0 {
+            return match negative {
+                true => -score_fn.score(&board),
+                false => score_fn.score(&board),
+            };
+        };
+
+        let side = board.side_to_move();
+
+        match board.status() {
+            GameStatus::Drawn => return 0.0,
+            GameStatus::Won => {
+                return match negative {
+                    true => -1.0,
+                    false => 1.0,
+                } * match side {
+                    Color::White => -1000.0,
+                    Color::Black => 1000.0,
+                };
+            }
+            GameStatus::Ongoing => {}
+        };
+
+        let mut alpha = alpha;
+
+        for (i, mov) in get_sorted_moves(&board, &side).into_iter().enumerate() {
+            let mut temp_board = board.clone();
+            temp_board.play(mov);
+
+            let score = if i == 0 {
+                -Self::negascout(score_fn, temp_board, depth - 1, -beta, -alpha, !negative)
+            } else {
+                let score = -Self::negascout(
+                    score_fn,
+                    temp_board.clone(),
+                    depth - 1,
+                    -(alpha + 1.0),
+                    -alpha,
+                    !negative,
+                );
+
+                if alpha < score && score < beta && alpha < beta {
+                    -Self::negascout(score_fn, temp_board, depth - 1, -beta, -score, !negative)
+                } else {
+                    score
+                }
+            };
+
+            alpha = alpha.max(score);
+            if alpha >= beta {
+                break;
+            }
+        }
+
+        alpha
+    }
+}
+
+impl Evaluator for Negascout {
+    fn eval_moves<T: ScoreFunction>(&self, board: Board, score_fn: &T) -> Vec<(Move, f64)> {
+        let side = board.side_to_move();
+        let moves = get_sorted_moves(&board, &side);
+
+        // white => next turn is black => negative should be true
+        let negative = match side {
+            Color::White => true,
+            Color::Black => false,
+        };
+
+        moves
+            .into_iter()
+            .map(|mov| {
+                let mut temp_board = board.clone();
+                temp_board.play(mov);
+                (
+                    mov,
+                    -Self::negascout(
+                        score_fn,
+                        temp_board,
+                        self.depth - 1,
+                        f64::NEG_INFINITY,
+                        f64::INFINITY,
+                        negative,
+                    ),
+                )
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -385,6 +499,36 @@ mod test {
     fn test_alphabetanegamax_vs_negamax() {
         let expected_evaluator = Negamax::new(4);
         let evaluator = AlphaBetaNegamax::new(4);
+        let score_fn = PawnDifferenceScore::default();
+
+        let mut board = Board::startpos();
+
+        let mov = Move {
+            from: Square::D2,
+            to: Square::D4,
+            promotion: None,
+        };
+
+        board.play(mov);
+
+        let expected_eval = expected_evaluator.eval_moves(board.clone(), &score_fn);
+        let eval = evaluator.eval_moves(board, &score_fn);
+
+        assert_eq!(
+            eval.len(),
+            expected_eval.len(),
+            "Eval vs Expected (lengths)"
+        );
+
+        for (e, ee) in eval.iter().zip(expected_eval.iter()) {
+            assert_eq!(e, ee, "Zipped evals should be equal");
+        }
+    }
+
+    #[test]
+    fn test_negascout_vs_negamax() {
+        let expected_evaluator = Negamax::new(4);
+        let evaluator = Negascout::new(4);
         let score_fn = PawnDifferenceScore::default();
 
         let mut board = Board::startpos();

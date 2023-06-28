@@ -1,8 +1,9 @@
 use super::score::ScoreFunction;
 use cozy_chess::{Board, Color, GameStatus, Move};
+use std::rc::Rc;
 
 pub trait Evaluator {
-    fn eval_moves<T: ScoreFunction>(&self, board: Board, score_fn: &T) -> Vec<(Move, f64)>;
+    fn eval_moves(&self, board: Board, score_fn: Rc<dyn ScoreFunction>) -> Vec<(Move, f64)>;
 }
 
 fn get_sorted_moves(board: &Board, side: &Color) -> Vec<Move> {
@@ -20,18 +21,10 @@ fn get_sorted_moves(board: &Board, side: &Color) -> Vec<Move> {
         for mov in piece_moves {
             if mov.promotion.is_some() {
                 promotions.push(mov);
-                continue;
-            }
-            if let Some(color) = board.color_on(mov.to) {
-                if color != *side {
-                    captures.push(mov);
-                    continue;
-                }
-            }
-
-            if !checkers.contains(&mov) {
+            } else if board.color_on(mov.to).is_some_and(|color| color != *side) {
+                captures.push(mov);
+            } else if !checkers.contains(&mov) {
                 moves.push(mov);
-                continue;
             }
         }
         false
@@ -49,7 +42,7 @@ fn get_sorted_moves(board: &Board, side: &Color) -> Vec<Move> {
 pub struct NaiveEvaluator;
 
 impl Evaluator for NaiveEvaluator {
-    fn eval_moves<T: ScoreFunction>(&self, board: Board, score_fn: &T) -> Vec<(Move, f64)> {
+    fn eval_moves(&self, board: Board, score_fn: Rc<dyn ScoreFunction>) -> Vec<(Move, f64)> {
         let side = board.side_to_move();
         let moves = get_sorted_moves(&board, &side);
 
@@ -87,7 +80,7 @@ impl Negamax {
         Self { depth }
     }
 
-    fn negamax<T: ScoreFunction>(score_fn: &T, board: Board, depth: usize, negative: bool) -> f64 {
+    fn negamax(score_fn: Rc<dyn ScoreFunction>, board: Board, depth: usize, negative: bool) -> f64 {
         if depth == 0 {
             return match negative {
                 true => -score_fn.score(&board),
@@ -118,7 +111,7 @@ impl Negamax {
             .map(|mov| {
                 let mut temp_board = board.clone();
                 temp_board.play(mov);
-                -Self::negamax(score_fn, temp_board, depth - 1, !negative)
+                -Self::negamax(score_fn.clone(), temp_board, depth - 1, !negative)
             })
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap()
@@ -126,7 +119,7 @@ impl Negamax {
 }
 
 impl Evaluator for Negamax {
-    fn eval_moves<T: ScoreFunction>(&self, board: Board, score_fn: &T) -> Vec<(Move, f64)> {
+    fn eval_moves(&self, board: Board, score_fn: Rc<dyn ScoreFunction>) -> Vec<(Move, f64)> {
         let side = board.side_to_move();
         let moves = get_sorted_moves(&board, &side);
 
@@ -143,7 +136,7 @@ impl Evaluator for Negamax {
                 temp_board.play(mov);
                 (
                     mov,
-                    -Self::negamax(score_fn, temp_board, self.depth - 1, negative),
+                    -Self::negamax(score_fn.clone(), temp_board, self.depth - 1, negative),
                 )
             })
             .collect()
@@ -166,8 +159,8 @@ impl AlphaBetaNegamax {
         Self { depth }
     }
 
-    fn negamax<T: ScoreFunction>(
-        score_fn: &T,
+    fn negamax(
+        score_fn: Rc<dyn ScoreFunction>,
         board: Board,
         depth: usize,
         alpha: f64,
@@ -204,7 +197,7 @@ impl AlphaBetaNegamax {
             let mut temp_board = board.clone();
             temp_board.play(mov);
             best_score = best_score.max(-Self::negamax(
-                score_fn,
+                score_fn.clone(),
                 temp_board,
                 depth - 1,
                 -beta,
@@ -223,7 +216,7 @@ impl AlphaBetaNegamax {
 }
 
 impl Evaluator for AlphaBetaNegamax {
-    fn eval_moves<T: ScoreFunction>(&self, board: Board, score_fn: &T) -> Vec<(Move, f64)> {
+    fn eval_moves(&self, board: Board, score_fn: Rc<dyn ScoreFunction>) -> Vec<(Move, f64)> {
         let side = board.side_to_move();
         let moves = get_sorted_moves(&board, &side);
 
@@ -241,7 +234,7 @@ impl Evaluator for AlphaBetaNegamax {
                 (
                     mov,
                     -Self::negamax(
-                        score_fn,
+                        score_fn.clone(),
                         temp_board,
                         self.depth - 1,
                         f64::NEG_INFINITY,
@@ -270,8 +263,8 @@ impl Negascout {
         Self { depth }
     }
 
-    fn negascout<T: ScoreFunction>(
-        score_fn: &T,
+    fn negascout(
+        score_fn: Rc<dyn ScoreFunction>,
         board: Board,
         depth: usize,
         alpha: f64,
@@ -308,10 +301,17 @@ impl Negascout {
             temp_board.play(mov);
 
             let score = if i == 0 {
-                -Self::negascout(score_fn, temp_board, depth - 1, -beta, -alpha, !negative)
+                -Self::negascout(
+                    score_fn.clone(),
+                    temp_board,
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    !negative,
+                )
             } else {
                 let score = -Self::negascout(
-                    score_fn,
+                    score_fn.clone(),
                     temp_board.clone(),
                     depth - 1,
                     -(alpha + 1.0),
@@ -320,7 +320,14 @@ impl Negascout {
                 );
 
                 if alpha < score && score < beta && alpha < beta {
-                    -Self::negascout(score_fn, temp_board, depth - 1, -beta, -score, !negative)
+                    -Self::negascout(
+                        score_fn.clone(),
+                        temp_board,
+                        depth - 1,
+                        -beta,
+                        -score,
+                        !negative,
+                    )
                 } else {
                     score
                 }
@@ -337,7 +344,7 @@ impl Negascout {
 }
 
 impl Evaluator for Negascout {
-    fn eval_moves<T: ScoreFunction>(&self, board: Board, score_fn: &T) -> Vec<(Move, f64)> {
+    fn eval_moves(&self, board: Board, score_fn: Rc<dyn ScoreFunction>) -> Vec<(Move, f64)> {
         let side = board.side_to_move();
         let moves = get_sorted_moves(&board, &side);
 
@@ -355,7 +362,7 @@ impl Evaluator for Negascout {
                 (
                     mov,
                     -Self::negascout(
-                        score_fn,
+                        score_fn.clone(),
                         temp_board,
                         self.depth - 1,
                         f64::NEG_INFINITY,
@@ -450,9 +457,9 @@ mod test {
         let evaluator = Negamax::new(2);
 
         let board = Board::startpos();
-        let score_fn = PawnDifferenceScore::default();
+        let score_fn = Rc::new(PawnDifferenceScore::default());
 
-        let eval = evaluator.eval_moves(board, &score_fn);
+        let eval = evaluator.eval_moves(board, score_fn);
 
         let total_score: f64 = eval.into_iter().map(|(mov, score)| score).sum();
         assert_eq!(total_score, 0.0);
@@ -461,7 +468,7 @@ mod test {
     #[test]
     fn pawn_move_test_negamax() {
         let evaluator = Negamax::new(2);
-        let score_fn = PawnDifferenceScore::default();
+        let score_fn = Rc::new(PawnDifferenceScore::default());
 
         let mut board = Board::startpos();
 
@@ -473,7 +480,7 @@ mod test {
 
         board.play(mov);
 
-        let eval = evaluator.eval_moves(board, &score_fn);
+        let eval = evaluator.eval_moves(board, score_fn);
 
         println!("{:?}", eval);
         let mut nonzero_scores = eval
@@ -499,7 +506,7 @@ mod test {
     fn test_alphabetanegamax_vs_negamax() {
         let expected_evaluator = Negamax::new(4);
         let evaluator = AlphaBetaNegamax::new(4);
-        let score_fn = PawnDifferenceScore::default();
+        let score_fn = Rc::new(PawnDifferenceScore::default());
 
         let mut board = Board::startpos();
 
@@ -511,8 +518,8 @@ mod test {
 
         board.play(mov);
 
-        let expected_eval = expected_evaluator.eval_moves(board.clone(), &score_fn);
-        let eval = evaluator.eval_moves(board, &score_fn);
+        let expected_eval = expected_evaluator.eval_moves(board.clone(), score_fn.clone());
+        let eval = evaluator.eval_moves(board, score_fn.clone());
 
         assert_eq!(
             eval.len(),
@@ -529,7 +536,7 @@ mod test {
     fn test_negascout_vs_negamax() {
         let expected_evaluator = Negamax::new(4);
         let evaluator = Negascout::new(4);
-        let score_fn = PawnDifferenceScore::default();
+        let score_fn = Rc::new(PawnDifferenceScore::default());
 
         let mut board = Board::startpos();
 
@@ -541,8 +548,8 @@ mod test {
 
         board.play(mov);
 
-        let expected_eval = expected_evaluator.eval_moves(board.clone(), &score_fn);
-        let eval = evaluator.eval_moves(board, &score_fn);
+        let expected_eval = expected_evaluator.eval_moves(board.clone(), score_fn.clone());
+        let eval = evaluator.eval_moves(board, score_fn.clone());
 
         assert_eq!(
             eval.len(),

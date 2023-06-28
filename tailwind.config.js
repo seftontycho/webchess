@@ -16,7 +16,7 @@ module.exports = {
                 }
             },
             page: {
-                background: '#0E0E0E',
+                background: "#EEEED2",
                 text: '#EEEED2',
             }
 

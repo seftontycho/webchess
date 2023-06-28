@@ -7,26 +7,21 @@ use cozy_chess::{Board, Move};
 use eval::Evaluator;
 use leptos::log;
 use score::ScoreFunction;
+use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct ComputerPlayer<E, S, C>
-where
-    E: Evaluator + Clone,
-    S: ScoreFunction + Clone,
-    C: Chooser + Clone,
-{
-    algorithm: E,
-    score_fn: S,
-    chooser: C,
+pub struct ComputerPlayer {
+    algorithm: Rc<dyn Evaluator>,
+    score_fn: Rc<dyn ScoreFunction>,
+    chooser: Rc<dyn Chooser>,
 }
 
-impl<E, S, C> ComputerPlayer<E, S, C>
-where
-    E: Evaluator + Clone,
-    S: ScoreFunction + Clone,
-    C: Chooser + Clone,
-{
-    pub fn new(algorithm: E, score_fn: S, chooser: C) -> Self {
+impl ComputerPlayer {
+    pub fn new(
+        algorithm: Rc<dyn Evaluator>,
+        score_fn: Rc<dyn ScoreFunction>,
+        chooser: Rc<dyn Chooser>,
+    ) -> Self {
         Self {
             algorithm,
             score_fn,
@@ -35,7 +30,7 @@ where
     }
 
     pub fn get_move(&self, board: Board) -> Option<Move> {
-        let eval = self.algorithm.eval_moves(board, &self.score_fn);
+        let eval = self.algorithm.eval_moves(board, self.score_fn.clone());
 
         let mut moves = Vec::with_capacity(eval.len());
         let mut weights = Vec::with_capacity(eval.len());

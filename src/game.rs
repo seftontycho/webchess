@@ -1,11 +1,23 @@
 use crate::algorithm::{
     choose::GreedyChooser,
     eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax, Negascout},
-    score::PawnDifferenceScore,
+    score::{piece_value, PawnDifferenceScore},
     ComputerPlayer,
 };
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
+use std::{collections::HashMap, hash::Hash};
+
+fn map_difference(a: HashMap<Piece, usize>, b: HashMap<Piece, usize>) -> HashMap<Piece, usize> {
+    let mut diff = HashMap::new();
+
+    for (piece, count) in a {
+        let count_b = b.get(&piece).unwrap_or(&0);
+        diff.insert(piece, count - *count_b);
+    }
+
+    diff
+}
 
 trait Flip {
     fn flip(&mut self);
@@ -149,18 +161,22 @@ fn filter_moves(
 }
 
 #[component]
-pub fn ChessBoard(cx: Scope) -> impl IntoView {
+pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoView {
     let (board, set_board) = create_signal(cx, Board::startpos());
+
+    let all_pieces_white = HashMap::from([
+        (Piece::Pawn, 8),
+        (Piece::Knight, 2),
+        (Piece::Bishop, 2),
+        (Piece::Rook, 2),
+        (Piece::Queen, 1),
+        (Piece::King, 1),
+    ]);
+
+    let all_pieces_black = all_pieces_white.clone();
+
     let (picker, set_picker) = create_signal(cx, MovePicker::new());
     let (user_color, set_user_color) = create_signal(cx, Color::White);
-
-    let opponent = ComputerPlayer::new(
-        AlphaBetaNegamax::new(6),
-        PawnDifferenceScore::default(),
-        GreedyChooser::default(),
-    );
-
-    let (opponent, set_opponent) = create_signal(cx, opponent);
 
     let color = create_memo(cx, move |_| board.get().side_to_move());
 
@@ -205,6 +221,60 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
         }
     });
 
+    let white_captured = create_memo(cx, move |_| {
+        let board = board.get();
+        let mut white = HashMap::new();
+
+        board.colors(Color::White).into_iter().for_each(|square| {
+            let piece = board.piece_on(square).expect("Should be piece here");
+            let count = white.entry(piece).or_insert(0);
+            *count += 1;
+        });
+
+        let white = map_difference(all_pieces_white.clone(), white);
+        let mut white = white
+            .into_iter()
+            .flat_map(|(piece, count)| {
+                let mut v = Vec::new();
+                for _ in 0..count {
+                    v.push(piece);
+                }
+                v
+            })
+            .collect::<Vec<_>>();
+
+        white.sort_by(|a, b| piece_value(*a).partial_cmp(&piece_value(*b)).unwrap());
+
+        white
+    });
+
+    let black_captured = create_memo(cx, move |_| {
+        let board = board.get();
+        let mut black = HashMap::new();
+
+        board.colors(Color::Black).into_iter().for_each(|square| {
+            let piece = board.piece_on(square).expect("Should be piece here");
+            let count = black.entry(piece).or_insert(0);
+            *count += 1;
+        });
+
+        let black = map_difference(all_pieces_black.clone(), black);
+        let mut black = black
+            .into_iter()
+            .flat_map(|(piece, count)| {
+                let mut v = Vec::new();
+                for _ in 0..count {
+                    v.push(piece);
+                }
+                v
+            })
+            .collect::<Vec<_>>();
+
+        black.sort_by(|a, b| piece_value(*a).partial_cmp(&piece_value(*b)).unwrap());
+
+        black
+    });
+
     let needs_promotion = create_memo(cx, move |_| {
         if color.get() != user_color.get() {
             return false;
@@ -216,7 +286,7 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     view! { cx,
         <div class="flex justify-center">
             <div>
-                <button class="mr-5 my-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
+                <button class="m-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
                 on:click=move |_| {
                         set_board.set(Board::startpos());
                         log!("Board reset");
@@ -225,7 +295,7 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
                 </button>
             </div>
             <div>
-                <button class="mr-20 my-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
+                <button class="m-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
                 on:click=move |_| {
                     cx.batch(|| {
                         set_user_color.update(|c| c.flip());
@@ -240,9 +310,25 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
                     }}
                 </button>
             </div>
-            <div class="ml-20 my-5 text-center text-white font-bold p-2 rounded-md bg-chess-green">
+            <div class="m-5 text-center text-white font-bold p-2 rounded-md bg-chess-green">
                 {move || format_board_status(board)}
             </div>
+        </div>
+        <div class="flex justify-center mx-auto max-w-2xl h-4">
+            {
+                move || {
+                    let pieces = match user_color.get().flipped() {
+                        Color::White => white_captured.get(),
+                        Color::Black => black_captured.get(),
+                    };
+
+                    pieces.into_iter().map(|piece| {
+                        view! { cx,
+                            <img class="p-0 max-w-piece" src=piece_to_img_path(Some(user_color.get()), Some(piece))/>
+                        }
+                    }).collect::<Vec<_>>()
+                }
+            }
         </div>
         <div class="max-w-2xl mx-auto my-auto">
             <div>

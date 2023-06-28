@@ -1,6 +1,7 @@
 mod algorithm;
 mod app;
 mod game;
+mod mixer;
 
 use app::App;
 use leptos::*;

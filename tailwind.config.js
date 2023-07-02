@@ -16,17 +16,23 @@ module.exports = {
                 }
             },
             page: {
-                background: '#0E0E0E',
-                text: '#EEEED2',
+                bar: '#272522',
+                background: "#312E2B",
+                dark: "#21201D",
+                text: '#DFDFDE',
+                textinverse: '#202021',
             }
 
         },
         maxWidth: {
-            'piece': '84px',
+            'piece': '128px',
+        },
+        maxHeight: {
+            'piece': '128px',
         },
         boxShadow: {
             'square-inner': 'inset 0 0 0 4px rgb(0 0 0 / 0.1)',
-        }
+        },
 
     },
   },

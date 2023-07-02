@@ -1,6 +1,7 @@
 mod algorithm;
 mod app;
 mod game;
+mod opponent;
 
 use app::App;
 use leptos::*;

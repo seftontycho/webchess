@@ -1,13 +1,25 @@
 use crate::algorithm::{
     choose::GreedyChooser,
-    eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax},
-    score::PawnDifferenceScore,
+    eval::{AlphaBetaNegamax, NaiveEvaluator, Negamax, Negascout},
+    score::{piece_value, PawnDifferenceScore},
     ComputerPlayer,
 };
 use cozy_chess::{Board, Color, GameStatus, Piece, PieceMoves, Square};
 use leptos::*;
+use std::{collections::HashMap, hash::Hash};
 
-trait Flip {
+fn map_difference(a: HashMap<Piece, usize>, b: HashMap<Piece, usize>) -> HashMap<Piece, usize> {
+    let mut diff = HashMap::new();
+
+    for (piece, count) in a {
+        let count_b = b.get(&piece).unwrap_or(&0);
+        diff.insert(piece, count - *count_b);
+    }
+
+    diff
+}
+
+pub trait Flip {
     fn flip(&mut self);
 
     fn flipped(&self) -> Self
@@ -77,33 +89,6 @@ impl MovePicker {
     }
 }
 
-fn format_board_status(board: ReadSignal<Board>) -> String {
-    let board = board.get();
-    let status = board.status();
-
-    match (status, board.side_to_move()) {
-        (GameStatus::Drawn, _) => return "Draw!".to_string(),
-        (GameStatus::Ongoing, side) => {
-            return format!(
-                "{} to move!",
-                match side {
-                    Color::White => "White",
-                    Color::Black => "Black",
-                }
-            );
-        }
-        (_, side) => {
-            return format!(
-                "{} wins!",
-                match side.flipped() {
-                    Color::White => "White",
-                    Color::Black => "Black",
-                }
-            );
-        }
-    }
-}
-
 fn piece_to_img_path(colour: Option<Color>, piece: Option<Piece>) -> String {
     let color = match colour {
         Some(Color::White) => "w",
@@ -150,17 +135,23 @@ fn filter_moves(
 
 #[component]
 pub fn ChessBoard(cx: Scope) -> impl IntoView {
-    let (board, set_board) = create_signal(cx, Board::startpos());
+    let board = use_context::<ReadSignal<Board>>(cx).expect("to have found board");
+    let set_board = use_context::<WriteSignal<Board>>(cx).expect("to have found set_board");
+    let user_color = use_context::<ReadSignal<Color>>(cx).expect("to have found user_color");
+    let opponent = use_context::<ReadSignal<ComputerPlayer>>(cx).expect("to have found opponent");
+
+    let all_pieces_white = HashMap::from([
+        (Piece::Pawn, 8),
+        (Piece::Knight, 2),
+        (Piece::Bishop, 2),
+        (Piece::Rook, 2),
+        (Piece::Queen, 1),
+        (Piece::King, 1),
+    ]);
+
+    let all_pieces_black = all_pieces_white.clone();
+
     let (picker, set_picker) = create_signal(cx, MovePicker::new());
-    let (user_color, set_user_color) = create_signal(cx, Color::White);
-
-    let opponent = ComputerPlayer::new(
-        AlphaBetaNegamax::new(6),
-        PawnDifferenceScore::default(),
-        GreedyChooser::default(),
-    );
-
-    let (opponent, set_opponent) = create_signal(cx, opponent);
 
     let color = create_memo(cx, move |_| board.get().side_to_move());
 
@@ -205,6 +196,60 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
         }
     });
 
+    let white_captured = create_memo(cx, move |_| {
+        let board = board.get();
+        let mut white = HashMap::new();
+
+        board.colors(Color::White).into_iter().for_each(|square| {
+            let piece = board.piece_on(square).expect("Should be piece here");
+            let count = white.entry(piece).or_insert(0);
+            *count += 1;
+        });
+
+        let white = map_difference(all_pieces_white.clone(), white);
+        let mut white = white
+            .into_iter()
+            .flat_map(|(piece, count)| {
+                let mut v = Vec::new();
+                for _ in 0..count {
+                    v.push(piece);
+                }
+                v
+            })
+            .collect::<Vec<_>>();
+
+        white.sort_by(|a, b| piece_value(*a).partial_cmp(&piece_value(*b)).unwrap());
+
+        white
+    });
+
+    let black_captured = create_memo(cx, move |_| {
+        let board = board.get();
+        let mut black = HashMap::new();
+
+        board.colors(Color::Black).into_iter().for_each(|square| {
+            let piece = board.piece_on(square).expect("Should be piece here");
+            let count = black.entry(piece).or_insert(0);
+            *count += 1;
+        });
+
+        let black = map_difference(all_pieces_black.clone(), black);
+        let mut black = black
+            .into_iter()
+            .flat_map(|(piece, count)| {
+                let mut v = Vec::new();
+                for _ in 0..count {
+                    v.push(piece);
+                }
+                v
+            })
+            .collect::<Vec<_>>();
+
+        black.sort_by(|a, b| piece_value(*a).partial_cmp(&piece_value(*b)).unwrap());
+
+        black
+    });
+
     let needs_promotion = create_memo(cx, move |_| {
         if color.get() != user_color.get() {
             return false;
@@ -214,39 +259,29 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
     });
 
     view! { cx,
-        <div class="flex justify-center">
-            <div>
-                <button class="mr-5 my-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
-                on:click=move |_| {
-                        set_board.set(Board::startpos());
-                        log!("Board reset");
-                }>
-                    "New Game"
-                </button>
-            </div>
-            <div>
-                <button class="mr-20 my-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
-                on:click=move |_| {
-                    cx.batch(|| {
-                        set_user_color.update(|c| c.flip());
-                        log!("Colour changed to {}", user_color.get_untracked());
-                        set_board.set(Board::startpos());
-                        log!("Board reset");
-                    })
-                }>
-                    {match user_color.get() {
-                        Color::White => "Play as Black",
-                        Color::Black => "Play as White",
-                    }}
-                </button>
-            </div>
-            <div class="ml-20 my-5 text-center text-white font-bold p-2 rounded-md bg-chess-green">
-                {move || format_board_status(board)}
-            </div>
+        <div class="flex justify-left mx-auto h-8">
+        {
+            move || {
+                let pieces = match user_color.get() {
+                    Color::White => white_captured.get(),
+                    Color::Black => black_captured.get(),
+                };
+
+                pieces.into_iter().map(|piece| {
+                    view! { cx,
+                        <img class=move || format!("object-scale-down {}", match user_color.get() {
+                            Color::White => "",
+                            Color::Black => "invert",
+                        })
+                        src=piece_to_img_path(Some(Color::White), Some(piece))/>
+                    }
+                }).collect::<Vec<_>>()
+            }
+        }
         </div>
-        <div class="max-w-2xl mx-auto my-auto">
+        <div>
             <div>
-                <div class="select-none grid grid-cols-8 mx-auto border-2 border-black">
+                <div class="select-none grid grid-cols-8">
                     {move || (0..64)
                         .map(|i| {
                             let square = match user_color.get() {
@@ -258,6 +293,7 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
                         .collect::<Vec<_>>()}
                 </div>
             </div>
+
             <div>
                 <Show
                     when=move || needs_promotion.get()
@@ -276,7 +312,7 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
                                         )
                                         on:click=move |_| { set_picker.update(|picker| { picker.set_promotion(p) }) }
                                     >
-                                        <img class="p-0 max-w-piece" src=path/>
+                                        <img class="p-0 object-scale-down" src=path/>
                                     </div>
                                 }
                             })
@@ -285,6 +321,26 @@ pub fn ChessBoard(cx: Scope) -> impl IntoView {
                 </Show>
             </div>
         </div>
+        <div class="flex justify-left mx-auto h-8">
+        {
+            move || {
+                let pieces = match user_color.get().flipped() {
+                    Color::White => white_captured.get(),
+                    Color::Black => black_captured.get(),
+                };
+
+                pieces.into_iter().map(|piece| {
+                    view! { cx,
+                        <img class=move || format!("object-scale-down {}", match user_color.get() {
+                            Color::White => "invert",
+                            Color::Black => "",
+                        })
+                        src=piece_to_img_path(Some(Color::White), Some(piece))/>
+                    }
+                }).collect::<Vec<_>>()
+            }
+        }
+    </div>
     }
 }
 
@@ -313,16 +369,16 @@ fn Square(
                     ""
                 };
                 if highlight == "" {
-                    format!("select-none aspect-square {} hover:shadow-square-inner", color)
+                    format!("overflow-hidden select-none aspect-square {} hover:shadow-square-inner", color)
                 } else {
-                    format!("select-none aspect-square {} {}", color, highlight)
+                    format!("overflow-hidden select-none aspect-square {} {}", color, highlight)
                 }
             }
             on:click=move |_| { set_picker.update(|p| p.set_square(square)) }
         >
             <Show when=move || { board.get().piece_on(square).is_some() } fallback=|_| {}>
                 <img
-                    class="p-0 max-w-piece"
+                    class="p-0 object-scale-down"
                     src=move || {
                         let color = board.get().color_on(square);
                         let piece = board.get().piece_on(square);

@@ -24,7 +24,7 @@ impl ScoreFunction for PawnDifferenceScore {
     }
 }
 
-fn piece_value(piece: Piece) -> f64 {
+pub fn piece_value(piece: Piece) -> f64 {
     match piece {
         Piece::Pawn => 1.0,
         Piece::Knight => 3.0,

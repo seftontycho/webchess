@@ -19,7 +19,7 @@ fn map_difference(a: HashMap<Piece, usize>, b: HashMap<Piece, usize>) -> HashMap
     diff
 }
 
-trait Flip {
+pub trait Flip {
     fn flip(&mut self);
 
     fn flipped(&self) -> Self
@@ -89,33 +89,6 @@ impl MovePicker {
     }
 }
 
-fn format_board_status(board: ReadSignal<Board>) -> String {
-    let board = board.get();
-    let status = board.status();
-
-    match (status, board.side_to_move()) {
-        (GameStatus::Drawn, _) => return "Draw!".to_string(),
-        (GameStatus::Ongoing, side) => {
-            return format!(
-                "{} to move!",
-                match side {
-                    Color::White => "White",
-                    Color::Black => "Black",
-                }
-            );
-        }
-        (_, side) => {
-            return format!(
-                "{} wins!",
-                match side.flipped() {
-                    Color::White => "White",
-                    Color::Black => "Black",
-                }
-            );
-        }
-    }
-}
-
 fn piece_to_img_path(colour: Option<Color>, piece: Option<Piece>) -> String {
     let color = match colour {
         Some(Color::White) => "w",
@@ -161,8 +134,11 @@ fn filter_moves(
 }
 
 #[component]
-pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoView {
-    let (board, set_board) = create_signal(cx, Board::startpos());
+pub fn ChessBoard(cx: Scope) -> impl IntoView {
+    let board = use_context::<ReadSignal<Board>>(cx).expect("to have found board");
+    let set_board = use_context::<WriteSignal<Board>>(cx).expect("to have found set_board");
+    let user_color = use_context::<ReadSignal<Color>>(cx).expect("to have found user_color");
+    let opponent = use_context::<ReadSignal<ComputerPlayer>>(cx).expect("to have found opponent");
 
     let all_pieces_white = HashMap::from([
         (Piece::Pawn, 8),
@@ -176,7 +152,6 @@ pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoV
     let all_pieces_black = all_pieces_white.clone();
 
     let (picker, set_picker) = create_signal(cx, MovePicker::new());
-    let (user_color, set_user_color) = create_signal(cx, Color::White);
 
     let color = create_memo(cx, move |_| board.get().side_to_move());
 
@@ -284,55 +259,29 @@ pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoV
     });
 
     view! { cx,
-        <div class="flex justify-center">
-            <div>
-                <button class="m-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
-                on:click=move |_| {
-                        set_board.set(Board::startpos());
-                        log!("Board reset");
-                }>
-                    "New Game"
-                </button>
-            </div>
-            <div>
-                <button class="m-5 bg-chess-green text-white font-bold rounded-md p-2 hover:bg-chess-white hover:text-chess-green"
-                on:click=move |_| {
-                    cx.batch(|| {
-                        set_user_color.update(|c| c.flip());
-                        log!("Colour changed to {}", user_color.get_untracked());
-                        set_board.set(Board::startpos());
-                        log!("Board reset");
-                    })
-                }>
-                    {match user_color.get() {
-                        Color::White => "Play as Black",
-                        Color::Black => "Play as White",
-                    }}
-                </button>
-            </div>
-            <div class="m-5 text-center text-white font-bold p-2 rounded-md bg-chess-green">
-                {move || format_board_status(board)}
-            </div>
-        </div>
-        <div class="flex justify-center mx-auto max-w-2xl h-4">
-            {
-                move || {
-                    let pieces = match user_color.get().flipped() {
-                        Color::White => white_captured.get(),
-                        Color::Black => black_captured.get(),
-                    };
+        <div class="flex justify-left mx-auto h-8">
+        {
+            move || {
+                let pieces = match user_color.get() {
+                    Color::White => white_captured.get(),
+                    Color::Black => black_captured.get(),
+                };
 
-                    pieces.into_iter().map(|piece| {
-                        view! { cx,
-                            <img class="p-0 max-w-piece" src=piece_to_img_path(Some(user_color.get()), Some(piece))/>
-                        }
-                    }).collect::<Vec<_>>()
-                }
+                pieces.into_iter().map(|piece| {
+                    view! { cx,
+                        <img class=move || format!("object-scale-down {}", match user_color.get() {
+                            Color::White => "",
+                            Color::Black => "invert",
+                        })
+                        src=piece_to_img_path(Some(Color::White), Some(piece))/>
+                    }
+                }).collect::<Vec<_>>()
             }
+        }
         </div>
-        <div class="max-w-2xl mx-auto my-auto">
+        <div>
             <div>
-                <div class="select-none grid grid-cols-8 mx-auto border-2 border-black">
+                <div class="select-none grid grid-cols-8">
                     {move || (0..64)
                         .map(|i| {
                             let square = match user_color.get() {
@@ -344,6 +293,7 @@ pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoV
                         .collect::<Vec<_>>()}
                 </div>
             </div>
+
             <div>
                 <Show
                     when=move || needs_promotion.get()
@@ -362,7 +312,7 @@ pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoV
                                         )
                                         on:click=move |_| { set_picker.update(|picker| { picker.set_promotion(p) }) }
                                     >
-                                        <img class="p-0 max-w-piece" src=path/>
+                                        <img class="p-0 object-scale-down" src=path/>
                                     </div>
                                 }
                             })
@@ -371,6 +321,26 @@ pub fn ChessBoard(cx: Scope, opponent: ReadSignal<ComputerPlayer>) -> impl IntoV
                 </Show>
             </div>
         </div>
+        <div class="flex justify-left mx-auto h-8">
+        {
+            move || {
+                let pieces = match user_color.get().flipped() {
+                    Color::White => white_captured.get(),
+                    Color::Black => black_captured.get(),
+                };
+
+                pieces.into_iter().map(|piece| {
+                    view! { cx,
+                        <img class=move || format!("object-scale-down {}", match user_color.get() {
+                            Color::White => "invert",
+                            Color::Black => "",
+                        })
+                        src=piece_to_img_path(Some(Color::White), Some(piece))/>
+                    }
+                }).collect::<Vec<_>>()
+            }
+        }
+    </div>
     }
 }
 
@@ -399,16 +369,16 @@ fn Square(
                     ""
                 };
                 if highlight == "" {
-                    format!("select-none aspect-square {} hover:shadow-square-inner", color)
+                    format!("overflow-hidden select-none aspect-square {} hover:shadow-square-inner", color)
                 } else {
-                    format!("select-none aspect-square {} {}", color, highlight)
+                    format!("overflow-hidden select-none aspect-square {} {}", color, highlight)
                 }
             }
             on:click=move |_| { set_picker.update(|p| p.set_square(square)) }
         >
             <Show when=move || { board.get().piece_on(square).is_some() } fallback=|_| {}>
                 <img
-                    class="p-0 max-w-piece"
+                    class="p-0 object-scale-down"
                     src=move || {
                         let color = board.get().color_on(square);
                         let piece = board.get().piece_on(square);

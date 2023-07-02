@@ -196,6 +196,7 @@ impl AlphaBetaNegamax {
         for mov in get_sorted_moves(&board, &side) {
             let mut temp_board = board.clone();
             temp_board.play(mov);
+
             best_score = best_score.max(-Self::negamax(
                 score_fn.clone(),
                 temp_board,
@@ -204,6 +205,7 @@ impl AlphaBetaNegamax {
                 -alpha,
                 !negative,
             ));
+
             alpha = alpha.max(best_score);
 
             if alpha >= beta {
@@ -495,7 +497,7 @@ mod test {
         assert_eq!(nonzero_scores.len(), 5);
 
         // C7C5, E7E5, G7G5, H7H6 all have score -1.0 as all present pawn captures
-        // G8H6 has score -3.0 as it presents a knigth capture
+        // G8H6 has score -3.0 as it presents a knight capture
         let expected: Vec<&f64> = vec![&-3.0, &-1.0, &-1.0, &-1.0, &-1.0];
 
         nonzero_scores.sort_by(|a, b| a.partial_cmp(b).unwrap());

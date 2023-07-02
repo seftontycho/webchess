@@ -5,7 +5,6 @@ pub mod score;
 use choose::Chooser;
 use cozy_chess::{Board, Move};
 use eval::Evaluator;
-use leptos::log;
 use score::ScoreFunction;
 use std::rc::Rc;
 
@@ -43,5 +42,17 @@ impl ComputerPlayer {
         let choice = self.chooser.choose(&moves, &weights);
 
         choice.map(|a| a.clone())
+    }
+
+    pub fn change_algorithm(&mut self, algorithm: Rc<dyn Evaluator>) {
+        self.algorithm = algorithm;
+    }
+
+    pub fn change_score_fn(&mut self, score_fn: Rc<dyn ScoreFunction>) {
+        self.score_fn = score_fn;
+    }
+
+    pub fn change_chooser(&mut self, chooser: Rc<dyn Chooser>) {
+        self.chooser = chooser;
     }
 }

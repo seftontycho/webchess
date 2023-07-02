@@ -51,7 +51,7 @@ pub fn OpponentMaker(cx: Scope) -> impl IntoView {
                             })
                         }
                         on:click=move |_| {
-                            set_opponent.update(|player| player.change_algorithm(Rc::new(Negamax::default())));
+                            set_opponent.update(|player| player.change_algorithm(Rc::new(Negamax::new(3))));
                             set_current_eval.set("Negamax");
                             log!("Opponent set to Negamax");
                         }>
@@ -71,7 +71,7 @@ pub fn OpponentMaker(cx: Scope) -> impl IntoView {
                         })
                     }
                     on:click=move |_| {
-                        set_opponent.update(|player| player.change_algorithm(Rc::new(Negamax::default())));
+                        set_opponent.update(|player| player.change_algorithm(Rc::new(AlphaBetaNegamax::new(6))));
                         set_current_eval.set("Negamax with Alpha-Beta Pruning");
                         log!("Opponent set to AlphaBetaNegamax");
                     }>

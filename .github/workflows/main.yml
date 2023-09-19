@@ -40,6 +40,9 @@ jobs:
           toolchain: nightly
           override: true
 
+      - name: Install trunk
+        run: cargo install trunk
+
       - name: Install WebAssembly target
         run: rustup target add wasm32-unknown-unknown
 
